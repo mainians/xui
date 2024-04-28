@@ -1,0 +1,35 @@
+name: Backup
+on:
+  schedule:
+    - cron: "10 10 1-31/2 * *"
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check and release
+        run: |
+            rm -fr *
+            sudo apt update
+            sudo apt install upx git gcc-aarch64-linux-gnu -y
+            sudo snap install go --classic
+            git clone https://github.com/mainians/x-ui  xui-core> /dev/null
+            cd xui-core
+            CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -buildid= -extldflags=-static" -tags musl,osusergo,netgo,sqlite_omit_load_extension -o ../xui-amd64
+            CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc go build -trimpath -ldflags "-s -w -buildid= -extldflags=-static" -tags musl,osusergo,netgo,sqlite_omit_load_extension -o ../xui-arm64
+            cd ../
+            upx --best xui-amd64 xui-arm64
+            rm -rf xui-core
+            mkdir -p .github/workflows
+            wget -qO .github/workflows/Backup.yml https://github.com/${{ github.repository }}/raw/main/.github/workflows/Backup.yml &> /dev/null
+            git config --global init.defaultBranch main
+            git init
+            git add .
+            git config user.name "mainians"
+            git config user.email "61817665+mainians@users.noreply.github.com"
+            git commit -m "xui amd64 & arm64 binary"
+            git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+            git push origin main --force
